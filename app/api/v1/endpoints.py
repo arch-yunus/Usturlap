@@ -11,6 +11,7 @@ from app.services.astro_engine import AstroEngine
 from app.services.ai_service import AIService
 from app.services.symbol_service import SabianSymbolService
 from app.services.chart_drawing import SVGChartService
+from app.services.interpretation_engine import BuiltinInterpretationService
 from datetime import datetime
 
 router = APIRouter()
@@ -18,12 +19,12 @@ engine = AstroEngine()
 ai_service = AIService()
 symbol_service = SabianSymbolService()
 drawing_service = SVGChartService()
+builtin_interpret = BuiltinInterpretationService()
 
 HOUSE_SYSTEMS = {"placidus": "P", "koch": "K", "campanus": "C", "regiomontanus": "R", "whole_sign": "W", "equal": "E", "porphyry": "O"}
 
 def _enhance(chart: ChartResponse) -> ChartResponse:
-    # Sabian symbols and other enrichments handled here
-    # For speed and brevity, I'll pass through first, then layer symbols
+    for p in chart.planets: p.sabian_symbol = symbol_service.get_symbol(p.sign, p.degree)
     return chart
 
 @router.get("/chart", response_model=ChartResponse)
@@ -39,6 +40,23 @@ async def get_chart(
         res = engine.calculate_chart(dt, lat, lon, HOUSE_SYSTEMS.get(system.lower(), "P"), is_hel=heliocentric, lang=lang)
         return _enhance(ChartResponse(meta=MetaData(datetime=dt, location=Location(lat=lat, lon=lon), house_system=system), **res))
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/interpret", response_model=AIInterpretationResponse)
+async def interpret(req: AIInterpretationRequest, lang: str = Query("tr")):
+    """
+    Generate an interpretation for the provided chart data.
+    Uses a hybrid approach: Built-in rule engine + AI scaffolding.
+    """
+    try:
+        base_text = builtin_interpret.get_base_interpretation(req.chart_data, lang=lang)
+        ai_res = await ai_service.get_interpretation(req.chart_data, req.interpretation_type)
+        
+        return AIInterpretationResponse(
+            interpretation=f"{base_text}\n\n---\n\n{ai_res.interpretation}",
+            model_used=ai_res.model_used,
+            structured_insights=ai_res.structured_insights
+        )
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/chart/draw")
 async def draw_chart(
@@ -75,18 +93,3 @@ async def synastry(req: SynastryRequest, lang: str = Query("tr")):
             compatibility_aspects=engine._calculate_aspects(c1["planets"], c2["planets"], lang=lang)
         )
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/transits", response_model=TransitResponse)
-async def transits(req: TransitRequest, lang: str = Query("tr")):
-    try:
-        natal = engine.calculate_chart(req.natal.datetime, req.natal.lat, req.natal.lon, HOUSE_SYSTEMS.get(req.natal.house_system.lower(), "P"), req.natal.is_heliocentric, lang=lang)
-        return TransitResponse(
-            natal_chart=_enhance(ChartResponse(meta=MetaData(datetime=req.natal.datetime, location=Location(lat=req.natal.lat, lon=req.natal.lon), house_system=req.natal.house_system), **natal)),
-            transit_planets=engine.calculate_transits(req.natal.datetime, req.natal.lat, req.natal.lon, req.transit_datetime, lang=lang)
-        )
-    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/interpret", response_model=AIInterpretationResponse)
-async def interpret(req: AIInterpretationRequest):
-    try: return await ai_service.get_interpretation(req.chart_data, req.interpretation_type)
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
