@@ -7,109 +7,87 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-00a393.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-Supported-2496ED.svg)](https://www.docker.com/)
 
-**Usturlap**, geliştiriciler, veri bilimciler ve astroloji araştırmacıları için tasarlanmış modern, yüksek performanslı ve açık kaynaklı bir astrolojik hesaplama motorudur. 
+**Usturlap**, geliştiriciler, veri bilimciler ve profesyonel astrologlar için tasarlanmış **egemen (sovereign)**, yüksek performanslı ve açık kaynaklı bir astrolojik hesaplama ekosistemidir.
 
-Binlerce yıllık astronomik formülleri modern yazılım mimarisiyle birleştiren bu proje, endüstri standardı olan **Swiss Ephemeris** verilerini temel alarak gezegen konumlarını, ev sistemlerini ve astrolojik açıları yüksek hassasiyetle hesaplar ve bunları esnek bir REST API üzerinden sunar.
+Binlerce yıllık kadim bilgeliği modern yazılım mimarisiyle birleştiren bu proje, endüstri standardı olan **Swiss Ephemeris** verilerini temel alarak en karmaşık astrolojik teknikleri saniyeler içinde hesaplar ve bunları yüksek yoğunluklu JSON formatında sunar.
 
 ---
 
-## 💎 Kapsamlı Özellikler
+## 💎 Egemen Özellikler (Sovereign Features)
 
-* **Gezegen ve Nokta Hesaplamaları:** Güneş ve Ay dâhil tüm ana gezegenlerin yanısıra, Ay Dümleri (Kuzey/Güney), Chiron, Lilith, Yükselen (Ascendant) ve Başucu (Midheaven - MC) noktalarının Zodyak üzerindeki tam derecelerini hesaplar.
-* **Zodyak Sistemleri:** Hem **Tropical** (Batı astrolojisi) hem de **Sidereal** (Vedik astroloji) zodyak hesaplamalarını destekler. Ayanamsa kaymalarını dinamik olarak ayarlayabilirsiniz.
-* **Çoklu Ev Sistemleri (House Systems):** Placidus, Koch, Campanus, Regiomontanus ve Whole Sign (Tüm Burç) ev sistemleri arasında kolayca geçiş yapın.
-* **Hız ve Retro Analizi:** Gezegenlerin anlık hızlarını ölçer ve durağan (Stationary) veya geri giden (Retrograde) gezegenleri otomatik olarak işaretler.
-* **Açı (Aspect) Motoru:** Gezegenler arası majör (Kavuşum, Karşıt, Üçgen, Kare, Sekstil) ve minör açıları yapılandırılabilir "Orb" (hata payı) değerleriyle tespit eder.
-* **LLM / Yapay Zeka Uyumluluğu:** Üretilen veri yapıları, Büyük Dil Modellerine (OpenAI, Gemini vb.) doğrudan beslenebilecek kadar temiz ve bağlamsal JSON formatındadır.
+Usturlap, basit bir gökyüzü haritasının çok ötesine geçerek profesyonel bir analiz platformu sunar:
+
+### 1. İleri Düzey Analiz Motoru
+*   **Temel Asaletler (Essential Dignities):** Rulership, Exaltation, Detriment ve Fall hesaplamalarıyla gezegen güçlerinin matematiksel analizi.
+*   **Almuten Figuris:** Ibn Ezra sistemine dayalı, haritanın gerçek yöneticisinin (Almuten) tespiti.
+*   **Orta Noktalar (Midpoints):** Tüm gezegen çiftleri için hassas orta nokta hesaplamaları.
+*   **Arap Noktaları (Lots):** Pars Fortuna (Şans Noktası), Pars Spiritus (Ruh Noktası) ve 20+ yaşam alanı noktası.
+
+### 2. Öngörü ve Gelecek Analizi
+*   **Secondary Progressions:** "Bir gün bir yıl" tekniği ile öngörüsel haritalar.
+*   **Solar Returns:** Güneş Dönüşü haritalarının astronomik hassasiyetle tespiti.
+*   **Solar Arc Directions:** Güneş arkına dayalı tüm gezegen hareketleri.
+*   **Transit Motoru:** Anlık gökyüzü konumlarının natal harita üzerindeki etkileri.
+
+### 3. Ezoterik ve Geleneksel Derinlik
+*   **Sabian Sembolleri:** Her derecenin arketiüsel ve sembolik anlamlarının entegrasyonu.
+*   **Sabit Yıldızlar (Fixed Stars):** 50+ önemli sabit yıldızın gezegenlerle olan temas analizi.
+*   **Ay Durakları (Lunar Mansions):** 28 menzilin (Manazil) hassas tespiti.
+*   **Harmonik Haritalar:** 9. Harmonik (Navamsa) ve diğer tüm harmonik serilerin üretimi.
+
+### 4. Modern ve Teknik Yetenekler
+*   **Astro-Cartography:** Coğrafi lokasyon bazlı gezegen hatlarının (MC/AC/IC/DC) haritalanması.
+*   **Heliocentric Desteği:** Güneş merkezli koordinat sistemi seçeneği.
+*   **Astro-AI:** LLM (OpenAI/Gemini) uyumlu veri yapıları ve entegre yorumlama scaffolding'i.
 
 ---
 
 ## 🏗️ Proje Mimarisi
 
-Proje, sürdürülebilirlik ve modülerlik esasına göre yapılandırılmıştır.
-
 ```text
 usturlap/
 ├── app/
-│   ├── api/v1/         # FastAPI routes and endpoint definitions
-│   ├── core/           # Configuration, constants and pydantic settings
-│   ├── models/         # API Request/Response models (Pydantic)
-│   ├── services/       # pyswisseph calculation logic and math engine
-│   └── main.py         # Application entry point
-├── .github/            # GitHub templates and governance
-├── assets/             # Project assets (Banner, etc.)
-├── ephe/               # Swiss Ephemeris raw data files (.se1)
-├── tests/              # Pytest unit tests
-├── Dockerfile          # Containerization (Multi-stage build)
-├── docker-compose.yml  # Quick setup compose file
-├── requirements.txt    # Python dependencies
-└── README.md
+│   ├── api/v1/         # Sovereign REST Endpoints
+│   ├── models/         # High-density Pydantic Models
+│   ├── services/       # Core Calculation Engines (Progressions, Lots, AI)
+│   └── main.py         # Entry Point
+├── .github/            # CI/CD & Governance
+├── tests/              # Pytest Suite
+└── Dockerfile          # Production Build
 ```
 
 ---
 
 ## 🚀 Kurulum ve Çalıştırma
 
-### Seçenek 1: Docker ile Çalıştırma (Önerilen)
-Sisteminizde Python kurmaya gerek kalmadan, tek komutla tüm bağımlılıkları ve Ephemeris verilerini hazır hale getirin. Docker, `pyswisseph` için gereken tüm C derleyicilerini otomatik olarak yönetir.
-
+### Docker ile Çalıştırma (Önerilen)
 ```bash
 git clone https://github.com/arch-yunus/usturlap.git
 cd usturlap
-# Ephemeris verilerini indirin (wiki'ye bakın) ve ephe/ klasörüne atın.
 docker-compose up -d --build
 ```
 
-### Seçenek 2: Yerel Python Ortamında Çalıştırma
-Geliştirme yapmak istiyorsanız projeyi yerel ortamınıza kurabilirsiniz. 
-**Not:** Local kurulum için Microsoft Visual C++ Build Tools gereklidir.
-
-1.  **Sanal ortam (Virtual Environment) oluşturun ve aktif edin:**
-    ```bash
-    python -m venv venv
-    ./venv/Scripts/activate  # Windows
-    source venv/bin/activate  # macOS/Linux
-    ```
-2.  **Bağımlılıkları yükleyin:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  **Sunucuyu başlatın:**
-    ```bash
-    python -m app.main
-    ```
-
-Sunucu çalıştıktan sonra [http://localhost:8000/docs](http://localhost:8000/docs) adresinden interaktif API dokümantasyonuna (Swagger UI) ulaşabilirsiniz.
+Sunucu çalıştıktan sonra [http://localhost:8000/docs](http://localhost:8000/docs) adresinden Swagger UI üzerinden tüm egemen özelliklere erişebilirsiniz.
 
 ---
-
-## 📡 API Kullanım Örnekleri
-
-### 1. Natal Harita Verisi Alma
-Belirli bir doğum tarihi ve koordinat için tüm gökyüzü haritasını çıkarır.
-
-**İstek:**
-```http
-GET /api/v1/chart?datetime=2002-04-10T14:30:00Z&lat=41.0082&lon=28.9784&system=placidus
-```
-
----
-
-## ⚠️ Önemli Not: Ephemeris Verileri
-Astrolojik hesaplamaların doğru yapılabilmesi için NASA JPL verilerini temel alan Swiss Ephemeris dosyalarına (`.se1` uzantılı) ihtiyaç vardır. Proje çalıştırıldığında gerekli dosyaları otomatik olarak indirmese bile, API'nin tam isabetli çalışması için `ephe/` klasörünün içinin dolu olduğundan emin olun.
 
 ## 🗺️ Yol Haritası (Roadmap)
 
-- [x] Gelişmiş Ephemeris motoru ve yönlendirme modülleri
-- [x] Docker ve CI/CD entegrasyonu
-- [ ] Transit geçişler (Transit chart) için zaman çizelgesi API'si
-- [ ] İki harita arası uyum (Sinastri) algoritması
-- [ ] `Astro-AI`: LLM destekli entegre yorumlama servisi
+- [x] Gelişmiş Ephemeris motoru ve yönlendirme
+- [x] Docker ve CI/CD entegrasyonu (Python Tests Workflow)
+- [x] Transit ve Sinastri algoritmaları
+- [x] `Astro-AI`: LLM yorumlama katmanı
+- [x] Öngörü Sistemleri (Solar Return, Progressions, Solar Arcs)
+- [x] Geleneksel Teknikler (Lots, Almuten, Lunar Mansions)
+- [x] Esoterik Modüller (Fixed Stars, Sabian Symbols, Harmonics)
+- [ ] Görselleştirme Kütüphanesi (SVG/Canvas Chart Drawing)
+
+---
 
 ## 🤝 Katkıda Bulunma
 
-Astroloji, matematik veya Python seviyorsanız katkılarınızı bekliyoruz! Bir özellik eklemek veya bir bug bildirmek isterseniz lütfen önce `CONTRIBUTING.md` dosyasını okuyun.
+Astroloji, matematik veya Python seviyorsanız katkılarınızı bekliyoruz! Lütfen önce `CONTRIBUTING.md` dosyasını okuyun.
 
 ## 📜 Lisans
 
-Bu proje **MIT Lisansı** ile lisanslanmıştır. Kaynak göstererek dilediğiniz gibi kullanabilir, değiştirebilir ve ticari projelerinize entegre edebilirsiniz.
+Bu proje **MIT Lisansı** ile lisanslanmıştır.
