@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from app.models.chart import (
     ChartRequest, ChartResponse, MetaData, Location, 
     SynastryRequest, SynastryResponse, TransitRequest, TransitResponse,
@@ -9,12 +9,14 @@ from app.models.chart import (
 from app.services.astro_engine import AstroEngine
 from app.services.ai_service import AIService
 from app.services.symbol_service import SabianSymbolService
+from app.services.chart_drawing import SVGChartService
 from datetime import datetime
 
 router = APIRouter()
 engine = AstroEngine()
 ai_service = AIService()
 symbol_service = SabianSymbolService()
+drawing_service = SVGChartService()
 
 HOUSE_SYSTEMS = {"placidus": "P", "koch": "K", "campanus": "C", "regiomontanus": "R", "whole_sign": "W", "equal": "E", "porphyry": "O"}
 
@@ -33,6 +35,20 @@ async def get_chart(
         dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
         res = engine.calculate_chart(dt, lat, lon, HOUSE_SYSTEMS.get(system.lower(), "P"), is_heliocentric=heliocentric)
         return _enhance(ChartResponse(meta=MetaData(datetime=dt, location=Location(lat=lat, lon=lon), house_system=system), **res))
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/chart/draw")
+async def draw_chart(
+    datetime_str: str = Query(..., alias="datetime"), 
+    lat: float = Query(...), lon: float = Query(...), 
+    system: str = Query("placidus")
+):
+    try:
+        dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
+        res = engine.calculate_chart(dt, lat, lon, HOUSE_SYSTEMS.get(system.lower(), "P"))
+        chart_data = _enhance(ChartResponse(meta=MetaData(datetime=dt, location=Location(lat=lat, lon=lon), house_system=system), **res))
+        svg_content = drawing_service.draw_chart(chart_data)
+        return Response(content=svg_content, media_type="image/svg+xml")
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/synastry", response_model=SynastryResponse)
