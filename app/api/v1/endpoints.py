@@ -29,11 +29,12 @@ async def get_chart(
     datetime_str: str = Query(..., alias="datetime"), 
     lat: float = Query(...), lon: float = Query(...), 
     system: str = Query("placidus"), 
-    heliocentric: bool = Query(False)
+    heliocentric: bool = Query(False),
+    lang: str = Query("tr")
 ):
     try:
         dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
-        res = engine.calculate_chart(dt, lat, lon, HOUSE_SYSTEMS.get(system.lower(), "P"), is_heliocentric=heliocentric)
+        res = engine.calculate_chart(dt, lat, lon, HOUSE_SYSTEMS.get(system.lower(), "P"), is_hel=heliocentric, lang=lang)
         return _enhance(ChartResponse(meta=MetaData(datetime=dt, location=Location(lat=lat, lon=lon), house_system=system), **res))
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
@@ -41,78 +42,48 @@ async def get_chart(
 async def draw_chart(
     datetime_str: str = Query(..., alias="datetime"), 
     lat: float = Query(...), lon: float = Query(...), 
-    system: str = Query("placidus")
+    system: str = Query("placidus"),
+    lang: str = Query("tr")
 ):
     try:
         dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
-        res = engine.calculate_chart(dt, lat, lon, HOUSE_SYSTEMS.get(system.lower(), "P"))
+        res = engine.calculate_chart(dt, lat, lon, HOUSE_SYSTEMS.get(system.lower(), "P"), lang=lang)
         chart_data = _enhance(ChartResponse(meta=MetaData(datetime=dt, location=Location(lat=lat, lon=lon), house_system=system), **res))
-        svg_content = drawing_service.draw_chart(chart_data)
-        return Response(content=svg_content, media_type="image/svg+xml")
+        return Response(content=drawing_service.draw_chart(chart_data), media_type="image/svg+xml")
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/synastry", response_model=SynastryResponse)
-async def synastry(req: SynastryRequest):
+async def synastry(req: SynastryRequest, lang: str = Query("tr")):
     try:
-        c1 = engine.calculate_chart(req.person_1.datetime, req.person_1.lat, req.person_1.lon, HOUSE_SYSTEMS.get(req.person_1.house_system.lower(), "P"), req.person_1.is_heliocentric)
-        c2 = engine.calculate_chart(req.person_2.datetime, req.person_2.lat, req.person_2.lon, HOUSE_SYSTEMS.get(req.person_2.house_system.lower(), "P"), req.person_2.is_heliocentric)
+        c1 = engine.calculate_chart(req.person_1.datetime, req.person_1.lat, req.person_1.lon, HOUSE_SYSTEMS.get(req.person_1.house_system.lower(), "P"), req.person_1.is_heliocentric, lang=lang)
+        c2 = engine.calculate_chart(req.person_2.datetime, req.person_2.lat, req.person_2.lon, HOUSE_SYSTEMS.get(req.person_2.house_system.lower(), "P"), req.person_2.is_heliocentric, lang=lang)
         return SynastryResponse(
             person_1_chart=_enhance(ChartResponse(meta=MetaData(datetime=req.person_1.datetime, location=Location(lat=req.person_1.lat, lon=req.person_1.lon), house_system=req.person_1.house_system), **c1)),
             person_2_chart=_enhance(ChartResponse(meta=MetaData(datetime=req.person_2.datetime, location=Location(lat=req.person_2.lat, lon=req.person_2.lon), house_system=req.person_2.house_system), **c2)),
-            compatibility_aspects=engine.calculate_synastry(c1, c2)
+            compatibility_aspects=engine._calculate_aspects(c1["planets"], c2["planets"], lang=lang)
         )
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/transits", response_model=TransitResponse)
-async def transits(req: TransitRequest):
+async def transits(req: TransitRequest, lang: str = Query("tr")):
     try:
-        natal = engine.calculate_chart(req.natal.datetime, req.natal.lat, req.natal.lon, HOUSE_SYSTEMS.get(req.natal.house_system.lower(), "P"), req.natal.is_heliocentric)
+        natal = engine.calculate_chart(req.natal.datetime, req.natal.lat, req.natal.lon, HOUSE_SYSTEMS.get(req.natal.house_system.lower(), "P"), req.natal.is_heliocentric, lang=lang)
         return TransitResponse(
             natal_chart=_enhance(ChartResponse(meta=MetaData(datetime=req.natal.datetime, location=Location(lat=req.natal.lat, lon=req.natal.lon), house_system=req.natal.house_system), **natal)),
-            transit_planets=engine.calculate_transits(req.natal.datetime, req.natal.lat, req.natal.lon, req.transit_datetime)
+            transit_planets=engine.calculate_transits(req.natal.datetime, req.natal.lat, req.natal.lon, req.transit_datetime, lang=lang)
         )
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/harmonic", response_model=ChartResponse)
-async def harmonic(req: HarmonicRequest):
-    try:
-        res = engine.calculate_harmonic_chart(req.natal.datetime, req.natal.lat, req.natal.lon, req.harmonic_number)
-        return _enhance(ChartResponse(meta=MetaData(datetime=req.natal.datetime, location=Location(lat=req.natal.lat, lon=req.natal.lon), house_system=req.natal.house_system), **res))
-    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/solar-arcs", response_model=ChartResponse)
-async def solar_arcs(req: SolarArcRequest):
-    try:
-        res = engine.calculate_solar_arc_directions(req.natal.datetime, req.target_date, req.natal.lat, req.natal.lon)
-        return _enhance(ChartResponse(meta=MetaData(datetime=req.target_date, location=Location(lat=req.natal.lat, lon=req.natal.lon), house_system=req.natal.house_system), **res))
-    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
-
 @router.post("/progressions", response_model=ChartResponse)
-async def progressions(req: ProgressionRequest):
+async def progressions(req: ProgressionRequest, lang: str = Query("tr")):
     try:
-        res = engine.calculate_secondary_progressions(req.natal.datetime, req.target_date, req.natal.lat, req.natal.lon)
+        res = engine.calculate_secondary_progressions(req.natal.datetime, req.target_date, req.natal.lat, req.natal.lon, lang=lang)
         return _enhance(ChartResponse(meta=MetaData(datetime=req.target_date, location=Location(lat=req.natal.lat, lon=req.natal.lon), house_system=req.natal.house_system), **res))
-    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/solar-return", response_model=ChartResponse)
-async def solar_return(req: SolarReturnRequest):
-    try:
-        res = engine.calculate_solar_return(req.natal.datetime, req.return_year, req.natal.lat, req.natal.lon)
-        return _enhance(ChartResponse(meta=MetaData(datetime=req.natal.datetime, location=Location(lat=req.natal.lat, lon=req.natal.lon), house_system=req.natal.house_system), **res))
-    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
-
-@router.get("/locality", response_model=list)
-async def locality(lat: float, lon: float, datetime_str: str = Query(..., alias="datetime"), planet: str = "Sun"):
-    try:
-        dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
-        return engine.calculate_locality_lines(dt, planet)
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/planetary-hours", response_model=PlanetaryHourResponse)
 async def hours(lat: float, lon: float):
-    try:
-        res = engine.calculate_planetary_hours(datetime.utcnow(), lat, lon)
-        return PlanetaryHourResponse(**res)
+    try: return PlanetaryHourResponse(**engine.calculate_planetary_hours(datetime.utcnow(), lat, lon))
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/interpret", response_model=AIInterpretationResponse)
