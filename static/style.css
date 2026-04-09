@@ -112,6 +112,23 @@ input, select {
     box-shadow: 0 10px 20px rgba(99, 102, 241, 0.2);
 }
 
+.secondary-btn {
+    width: 100%;
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.secondary-btn:hover {
+    background: rgba(99, 102, 241, 0.1);
+    transform: translateY(-2px);
+}
+
 .display {
     display: flex;
     flex-direction: column;
