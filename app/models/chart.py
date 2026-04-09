@@ -37,12 +37,26 @@ class MetaData(BaseModel):
     location: Location
     house_system: str
 
+class LotData(BaseModel):
+    name: str # Lot of Fortune, Spirit, etc.
+    sign: str
+    degree: float
+
+class FixedStarData(BaseModel):
+    name: str # Regulus, Aldebaran, etc.
+    sign: str
+    degree: float
+    distance_to_planet: Optional[float] = None
+    connected_planet: Optional[str] = None
+
 class ChartResponse(BaseModel):
     meta: MetaData
     ascendant: Dict[str, Any]
     planets: List[PlanetData]
     aspects: List[AspectData]
     midpoints: Optional[List[Dict[str, Any]]] = None
+    lots: Optional[List[LotData]] = None
+    fixed_stars: Optional[List[FixedStarData]] = None
 
 class ChartRequest(BaseModel):
     datetime: datetime
@@ -70,11 +84,19 @@ class TransitResponse(BaseModel):
 
 class ProgressionRequest(BaseModel):
     natal: ChartRequest
-    target_date: datetime # The date we want to see progressions for
+    target_date: datetime 
 
 class SolarReturnRequest(BaseModel):
     natal: ChartRequest
-    return_year: int # The year of the solar return
+    return_year: int 
+
+class HarmonicRequest(BaseModel):
+    natal: ChartRequest
+    harmonic_number: int # 9 for Navamsa, etc.
+
+class LocalityRequest(BaseModel):
+    natal: ChartRequest
+    planet: str # The planet we want to map lines for
 
 class PlanetaryHourResponse(BaseModel):
     hour_ruler: str
