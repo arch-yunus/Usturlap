@@ -13,6 +13,10 @@ class DignityData(BaseModel):
     fall: bool = False
     score: int = 0  # Essential dignity score
 
+class SabianSymbolData(BaseModel):
+    degree_label: str
+    symbol: str
+
 class PlanetData(BaseModel):
     name: str
     sign: str
@@ -20,6 +24,7 @@ class PlanetData(BaseModel):
     house: int
     is_retrograde: bool
     dignity: Optional[DignityData] = None
+    sabian_symbol: Optional[SabianSymbolData] = None
 
 class AspectData(BaseModel):
     planet_1: str
@@ -61,7 +66,20 @@ class TransitRequest(BaseModel):
 
 class TransitResponse(BaseModel):
     natal_chart: ChartResponse
-    transit_planets: List[PlanetData] # Current positions relative to natal chart
+    transit_planets: List[PlanetData] 
+
+class ProgressionRequest(BaseModel):
+    natal: ChartRequest
+    target_date: datetime # The date we want to see progressions for
+
+class SolarReturnRequest(BaseModel):
+    natal: ChartRequest
+    return_year: int # The year of the solar return
+
+class PlanetaryHourResponse(BaseModel):
+    hour_ruler: str
+    day_ruler: str
+    is_daytime: bool
 
 class AIInterpretationRequest(BaseModel):
     chart_data: ChartResponse

@@ -1,8 +1,8 @@
 import swisseph as swe
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from app.models.chart import PlanetData, AspectData, Location, ChartResponse, DignityData
+from app.models.chart import PlanetData, AspectData, Location, ChartResponse, DignityData, SabianSymbolData
 
 # Planet constants from swisseph
 PLANETS = {
@@ -34,7 +34,6 @@ ASPECTS = [
     {"name": "Sextile", "angle": 60, "orb": 6},
 ]
 
-# Essential Dignities Table
 DIGNITIES_TABLE = {
     "Sun": {"rulership": ["Leo"], "exaltation": "Aries", "detriment": ["Aquarius"], "fall": "Libra"},
     "Moon": {"rulership": ["Cancer"], "exaltation": "Taurus", "detriment": ["Capricorn"], "fall": "Scorpio"},
@@ -52,177 +51,147 @@ class AstroEngine:
         swe.set_ephe_path(abs_path)
 
     def get_julian_day(self, dt: datetime) -> float:
-        """Convert datetime to Julian Day (ET)."""
         return swe.julday(dt.year, dt.month, dt.day, dt.hour + dt.minute/60.0 + dt.second/3600.0)
 
     def get_sign(self, degree: float) -> str:
-        """Get zodiac sign name from degree (0-360)."""
         index = int(degree / 30) % 12
         return ZODIAC_SIGNS[index]
 
     def get_degree_in_sign(self, degree: float) -> float:
-        """Get degree within the 30-degree sign (0-30)."""
         return degree % 30
 
     def calculate_chart(self, dt: datetime, lat: float, lon: float, house_system: str = 'P') -> Dict[str, Any]:
-        """Core calculation for a natal chart."""
         jd = self.get_julian_day(dt)
-        
         hsys_code = house_system[0].upper().encode('utf-8')
         cusps, ascmc = swe.houses_ex(jd, lat, lon, hsys_code)
         
-        ascendant = {
-            "sign": self.get_sign(ascmc[0]),
-            "degree": round(self.get_degree_in_sign(ascmc[0]), 2)
-        }
-        
-        mc = {
-            "sign": self.get_sign(ascmc[1]),
-            "degree": round(self.get_degree_in_sign(ascmc[1]), 2)
-        }
+        ascendant = {"sign": self.get_sign(ascmc[0]), "degree": round(self.get_degree_in_sign(ascmc[0]), 2)}
+        mc = {"sign": self.get_sign(ascmc[1]), "degree": round(self.get_degree_in_sign(ascmc[1]), 2)}
 
         planets_data = []
         for name, swe_id in PLANETS.items():
-            res, status = swe.calc_ut(jd, swe_id)
+            res, _ = swe.calc_ut(jd, swe_id)
             long = res[0]
             speed = res[3]
             house_num = self._get_house_for_long(long, cusps)
             sign = self.get_sign(long)
 
-            dignity = self.get_essential_dignity(name, sign)
-
             planets_data.append(PlanetData(
-                name=name,
-                sign=sign,
-                degree=round(self.get_degree_in_sign(long), 2),
-                house=house_num,
-                is_retrograde=speed < 0,
-                dignity=dignity
+                name=name, sign=sign, degree=round(self.get_degree_in_sign(long), 2),
+                house=house_num, is_retrograde=speed < 0,
+                dignity=self.get_essential_dignity(name, sign)
             ))
 
-        midpoints = self.calculate_midpoints(planets_data)
-        aspects = self._calculate_aspects(planets_data)
-
         return {
-            "ascendant": ascendant,
-            "midheaven": mc,
-            "planets": planets_data,
-            "aspects": aspects,
-            "midpoints": midpoints
+            "ascendant": ascendant, "midheaven": mc, "planets": planets_data,
+            "aspects": self._calculate_aspects(planets_data),
+            "midpoints": self.calculate_midpoints(planets_data)
         }
 
     def get_essential_dignity(self, planet_name: str, sign: str) -> Optional[DignityData]:
-        if planet_name not in DIGNITIES_TABLE:
-            return None
-
+        if planet_name not in DIGNITIES_TABLE: return None
         dig = DIGNITIES_TABLE[planet_name]
-        is_ruler = sign in dig["rulership"]
-        is_exalted = sign == dig["exaltation"]
-        is_detriment = sign in dig["detriment"]
-        is_fall = sign == dig["fall"]
-
-        score = 0
-        if is_ruler: score += 5
-        if is_exalted: score += 4
-        if is_detriment: score -= 5
-        if is_fall: score -= 4
-
-        return DignityData(
-            rulership=is_ruler,
-            exaltation=is_exalted,
-            detriment=is_detriment,
-            fall=is_fall,
-            score=score
-        )
+        is_ruler, is_exalted = sign in dig["rulership"], sign == dig["exaltation"]
+        is_detriment, is_fall = sign in dig["detriment"], sign == dig["fall"]
+        score = (5 if is_ruler else 0) + (4 if is_exalted else 0) - (5 if is_detriment else 0) - (4 if is_fall else 0)
+        return DignityData(rulership=is_ruler, exaltation=is_exalted, detriment=is_detriment, fall=is_fall, score=score)
 
     def calculate_midpoints(self, planets: List[PlanetData]) -> List[Dict[str, Any]]:
         midpoints = []
         for i in range(len(planets)):
             for j in range(i + 1, len(planets)):
-                p1 = planets[i]
-                p2 = planets[j]
-                
-                d1 = self._to_full_degree(p1.sign, p1.degree)
-                d2 = self._to_full_degree(p2.sign, p2.degree)
-                
+                d1, d2 = self._to_full_degree(planets[i].sign, planets[i].degree), self._to_full_degree(planets[j].sign, planets[j].degree)
                 diff = abs(d1 - d2)
-                mid_degree = (d1 + d2) / 2.0
-                if diff > 180:
-                    mid_degree = (mid_degree + 180.0) % 360.0
-                
-                midpoints.append({
-                    "planets": [p1.name, p2.name],
-                    "sign": self.get_sign(mid_degree),
-                    "degree": round(self.get_degree_in_sign(mid_degree), 2)
-                })
+                mid_degree = ((d1 + d2) / 2.0 + (180.0 if diff > 180 else 0)) % 360.0
+                midpoints.append({"planets": [planets[i].name, planets[j].name], "sign": self.get_sign(mid_degree), "degree": round(self.get_degree_in_sign(mid_degree), 2)})
         return midpoints
+
+    def calculate_secondary_progressions(self, natal_dt: datetime, target_date: datetime, lat: float, lon: float) -> Dict[str, Any]:
+        """Calculates secondary progressions (1 day = 1 year)."""
+        years_diff = (target_date - natal_dt).days / 365.25
+        prog_dt = natal_dt + timedelta(days=years_diff)
+        return self.calculate_chart(prog_dt, lat, lon)
+
+    def calculate_solar_return(self, natal_dt: datetime, return_year: int, lat: float, lon: float) -> Dict[str, Any]:
+        """Finds the solar return moment for a given year."""
+        jd_natal = self.get_julian_day(natal_dt)
+        res, _ = swe.calc_ut(jd_natal, swe.SUN)
+        natal_sun_long = res[0]
+        
+        # Estimate return date
+        estimate_dt = datetime(return_year, natal_dt.month, natal_dt.day, natal_dt.hour, natal_dt.minute)
+        jd_start = self.get_julian_day(estimate_dt) - 2.0 # Search window
+        
+        # Find the exact moment Sun longitude matches
+        return_jd = swe.solcross_ut(natal_sun_long, jd_start)
+        y, m, d, h = swe.revjul(return_jd)
+        # Convert decimal hour to H:M:S
+        hour = int(h)
+        minute = int((h - hour) * 60)
+        second = int(((h - hour) * 60 - minute) * 60)
+        return_dt = datetime(y, m, d, hour, minute, second)
+        
+        return self.calculate_chart(return_dt, lat, lon)
+
+    def calculate_planetary_hours(self, dt: datetime, lat: float, lon: float) -> Dict[str, Any]:
+        """Calculates the planetary ruler of the current day and hour."""
+        jd = self.get_julian_day(dt)
+        # 1. Get sunrise/sunset
+        res = swe.rise_trans(jd, swe.SUN, lat, lon, 0, 0, 0, swe.BIT_SET_RISE)
+        sunrise_jd = res[0]
+        res = swe.rise_trans(jd, swe.SUN, lat, lon, 0, 0, 0, swe.BIT_SET_SET)
+        sunset_jd = res[0]
+        
+        is_daytime = sunrise_jd <= jd <= sunset_jd
+        # Simplified planetary hour logic (requires specific day-of-week mapping)
+        day_of_week = dt.weekday() # 0=Monday, 6=Sunday
+        days = ["Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Sun"] # Actually, order is Sun(0), Mon(1)...
+        # Correct Chaldean order: Sat, Jup, Mar, Sun, Ven, Mer, Moo
+        chaldean_order = ["Saturn", "Jupiter", "Mars", "Sun", "Venus", "Mercury", "Moon"]
+        # Day rulers: Sun=Sun, Mon=Moon, Tue=Mars, Wed=Mercury, Thu=Jupiter, Fri=Venus, Sat=Saturn
+        day_rulers = ["Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Sun"] # Mon-Sun
+        day_ruler = day_rulers[day_of_week]
+        
+        return {"day_ruler": day_ruler, "is_daytime": is_daytime, "hour_ruler": "Pending Implementation"} # Full math is complex
+
+    def calculate_transits(self, natal_dt: datetime, lat: float, lon: float, transit_dt: datetime, house_system: str = 'P') -> List[PlanetData]:
+        natal_jd, transit_jd = self.get_julian_day(natal_dt), self.get_julian_day(transit_dt)
+        cusps, _ = swe.houses_ex(natal_jd, lat, lon, house_system[0].upper().encode('utf-8'))
+        transit_planets = []
+        for name, swe_id in PLANETS.items():
+            res, _ = swe.calc_ut(transit_jd, swe_id)
+            long, speed = res[0], res[3]
+            transit_planets.append(PlanetData(name=name, sign=self.get_sign(long), degree=round(self.get_degree_in_sign(long), 2), house=self._get_house_for_long(long, cusps), is_retrograde=speed < 0))
+        return transit_planets
 
     def calculate_synastry(self, natal1: Dict[str, Any], natal2: Dict[str, Any]) -> List[AspectData]:
         return self._calculate_aspects(natal1["planets"], natal2["planets"])
 
-    def calculate_transits(self, natal_dt: datetime, lat: float, lon: float, transit_dt: datetime, house_system: str = 'P') -> List[PlanetData]:
-        natal_jd = self.get_julian_day(natal_dt)
-        transit_jd = self.get_julian_day(transit_dt)
-        
-        hsys_code = house_system[0].upper().encode('utf-8')
-        cusps, _ = swe.houses_ex(natal_jd, lat, lon, hsys_code)
-        
-        transit_planets = []
-        for name, swe_id in PLANETS.items():
-            res, _ = swe.calc_ut(transit_jd, swe_id)
-            long = res[0]
-            speed = res[3]
-            house_num = self._get_house_for_long(long, cusps)
-
-            transit_planets.append(PlanetData(
-                name=name,
-                sign=self.get_sign(long),
-                degree=round(self.get_degree_in_sign(long), 2),
-                house=house_num,
-                is_retrograde=speed < 0
-            ))
-        return transit_planets
-
     def _get_house_for_long(self, long: float, cusps: List[float]) -> int:
         for i in range(1, 12):
-            c1 = cusps[i]
-            c2 = cusps[i+1]
-            if c1 < c2:
-                if c1 <= long < c2: return i
-            else:
-                if long >= c1 or long < c2: return i
+            if cusps[i] < cusps[i+1]:
+                if cusps[i] <= long < cusps[i+1]: return i
+            elif long >= cusps[i] or long < cusps[i+1]: return i
         return 12
 
-    def _calculate_aspects(self, planets_a: List[PlanetData], planets_b: Optional[List[PlanetData]] = None) -> List[AspectData]:
-        results = []
-        if planets_b is None:
-            for i in range(len(planets_a)):
-                for j in range(i + 1, len(planets_a)):
-                    self._add_aspect_if_exists(planets_a[i], planets_a[j], results)
+    def _calculate_aspects(self, pA: List[PlanetData], pB: Optional[List[PlanetData]] = None) -> List[AspectData]:
+        res = []
+        if pB is None:
+            for i in range(len(pA)):
+                for j in range(i + 1, len(pA)): self._add_aspect_if_exists(pA[i], pA[j], res)
         else:
-            for p1 in planets_a:
-                for p2 in planets_b:
-                    self._add_aspect_if_exists(p1, p2, results)
-        return results
+            for p1 in pA:
+                for p2 in pB: self._add_aspect_if_exists(p1, p2, res)
+        return res
 
-    def _add_aspect_if_exists(self, p1: PlanetData, p2: PlanetData, results: List[AspectData]):
-        d1 = self._to_full_degree(p1.sign, p1.degree)
-        d2 = self._to_full_degree(p2.sign, p2.degree)
+    def _add_aspect_if_exists(self, p1: PlanetData, p2: PlanetData, res: List[AspectData]):
+        d1, d2 = self._to_full_degree(p1.sign, p1.degree), self._to_full_degree(p2.sign, p2.degree)
         diff = abs(d1 - d2)
         if diff > 180: diff = 360 - diff
         for aspect in ASPECTS:
             orb_val = abs(diff - aspect["angle"])
-            if orb_val <= aspect["orb"]:
-                results.append(AspectData(
-                    planet_1=p1.name,
-                    planet_2=p2.name,
-                    aspect_type=aspect["name"],
-                    orb=round(orb_val, 2)
-                ))
+            if orb_val <= aspect["orb"]: res.append(AspectData(planet_1=p1.name, planet_2=p2.name, aspect_type=aspect["name"], orb=round(orb_val, 2)))
 
     def _to_full_degree(self, sign: str, degree: float) -> float:
-        try:
-            index = ZODIAC_SIGNS.index(sign)
-            return index * 30 + degree
-        except ValueError:
-            return 0.0
+        try: return ZODIAC_SIGNS.index(sign) * 30 + degree
+        except ValueError: return 0.0

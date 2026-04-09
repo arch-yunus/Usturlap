@@ -2,25 +2,28 @@ from fastapi import APIRouter, HTTPException, Query
 from app.models.chart import (
     ChartRequest, ChartResponse, MetaData, Location, 
     SynastryRequest, SynastryResponse, TransitRequest, TransitResponse,
-    AIInterpretationRequest, AIInterpretationResponse
+    AIInterpretationRequest, AIInterpretationResponse,
+    ProgressionRequest, SolarReturnRequest, PlanetaryHourResponse
 )
 from app.services.astro_engine import AstroEngine
 from app.services.ai_service import AIService
+from app.services.symbol_service import SabianSymbolService
 from datetime import datetime
 
 router = APIRouter()
 engine = AstroEngine()
 ai_service = AIService()
+symbol_service = SabianSymbolService()
 
 HOUSE_SYSTEMS = {
-    "placidus": "P",
-    "koch": "K",
-    "campanus": "C",
-    "regiomontanus": "R",
-    "whole_sign": "W",
-    "equal": "E",
-    "porphyry": "O"
+    "placidus": "P", "koch": "K", "campanus": "C", 
+    "regiomontanus": "R", "whole_sign": "W", "equal": "E", "porphyry": "O"
 }
+
+def _enhance_with_symbols(chart: ChartResponse) -> ChartResponse:
+    for planet in chart.planets:
+        planet.sabian_symbol = symbol_service.get_symbol(planet.sign, planet.degree)
+    return chart
 
 @router.get("/chart", response_model=ChartResponse)
 async def get_chart(
@@ -29,84 +32,71 @@ async def get_chart(
     lon: float = Query(..., example=28.9784),
     system: str = Query("placidus", example="placidus")
 ):
-    """
-    Calculate a natal chart for a given date, time, and location.
-    """
     try:
         dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
-        hsys = HOUSE_SYSTEMS.get(system.lower(), "P")
-        
-        results = engine.calculate_chart(dt, lat, lon, house_system=hsys)
-        
-        return ChartResponse(
+        results = engine.calculate_chart(dt, lat, lon, house_system=HOUSE_SYSTEMS.get(system.lower(), "P"))
+        response = ChartResponse(
             meta=MetaData(datetime=dt, location=Location(lat=lat, lon=lon), house_system=system),
-            ascendant=results["ascendant"],
-            planets=results["planets"],
-            aspects=results["aspects"],
-            midpoints=results["midpoints"]
+            ascendant=results["ascendant"], planets=results["planets"],
+            aspects=results["aspects"], midpoints=results["midpoints"]
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return _enhance_with_symbols(response)
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/synastry", response_model=SynastryResponse)
 async def get_synastry(request: SynastryRequest):
-    """
-    Calculate compatibility aspects between two charts.
-    """
     try:
-        hsys1 = HOUSE_SYSTEMS.get(request.person_1.house_system.lower(), "P")
-        hsys2 = HOUSE_SYSTEMS.get(request.person_2.house_system.lower(), "P")
-        
-        chart1 = engine.calculate_chart(request.person_1.datetime, request.person_1.lat, request.person_1.lon, hsys1)
-        chart2 = engine.calculate_chart(request.person_2.datetime, request.person_2.lat, request.person_2.lon, hsys2)
-        
-        compatibility = engine.calculate_synastry(chart1, chart2)
-        
+        c1 = engine.calculate_chart(request.person_1.datetime, request.person_1.lat, request.person_1.lon, HOUSE_SYSTEMS.get(request.person_1.house_system.lower(), "P"))
+        c2 = engine.calculate_chart(request.person_2.datetime, request.person_2.lat, request.person_2.lon, HOUSE_SYSTEMS.get(request.person_2.house_system.lower(), "P"))
+        comp = engine.calculate_synastry(c1, c2)
         return SynastryResponse(
-            person_1_chart=ChartResponse(
-                meta=MetaData(datetime=request.person_1.datetime, location=Location(lat=request.person_1.lat, lon=request.person_1.lon), house_system=request.person_1.house_system),
-                ascendant=chart1["ascendant"], planets=chart1["planets"], aspects=chart1["aspects"], midpoints=chart1["midpoints"]
-            ),
-            person_2_chart=ChartResponse(
-                meta=MetaData(datetime=request.person_2.datetime, location=Location(lat=request.person_2.lat, lon=request.person_2.lon), house_system=request.person_2.house_system),
-                ascendant=chart2["ascendant"], planets=chart2["planets"], aspects=chart2["aspects"], midpoints=chart2["midpoints"]
-            ),
-            compatibility_aspects=compatibility
+            person_1_chart=_enhance_with_symbols(ChartResponse(meta=MetaData(datetime=request.person_1.datetime, location=Location(lat=request.person_1.lat, lon=request.person_1.lon), house_system=request.person_1.house_system), ascendant=c1["ascendant"], planets=c1["planets"], aspects=c1["aspects"], midpoints=c1["midpoints"])),
+            person_2_chart=_enhance_with_symbols(ChartResponse(meta=MetaData(datetime=request.person_2.datetime, location=Location(lat=request.person_2.lat, lon=request.person_2.lon), house_system=request.person_2.house_system), ascendant=c2["ascendant"], planets=c2["planets"], aspects=c2["aspects"], midpoints=c2["midpoints"])),
+            compatibility_aspects=comp
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/transits", response_model=TransitResponse)
 async def get_transits(request: TransitRequest):
-    """
-    Calculate current planet positions relative to a natal chart.
-    """
     try:
-        hsys = HOUSE_SYSTEMS.get(request.natal.house_system.lower(), "P")
-        
-        natal_chart_data = engine.calculate_chart(request.natal.datetime, request.natal.lat, request.natal.lon, hsys)
-        transit_planets = engine.calculate_transits(
-            request.natal.datetime, request.natal.lat, request.natal.lon, 
-            request.transit_datetime, hsys
-        )
-        
+        natal = engine.calculate_chart(request.natal.datetime, request.natal.lat, request.natal.lon, HOUSE_SYSTEMS.get(request.natal.house_system.lower(), "P"))
+        transits = engine.calculate_transits(request.natal.datetime, request.natal.lat, request.natal.lon, request.transit_datetime)
         return TransitResponse(
-            natal_chart=ChartResponse(
-                meta=MetaData(datetime=request.natal.datetime, location=Location(lat=request.natal.lat, lon=request.natal.lon), house_system=request.natal.house_system),
-                ascendant=natal_chart_data["ascendant"], planets=natal_chart_data["planets"], aspects=natal_chart_data["aspects"], midpoints=natal_chart_data["midpoints"]
-            ),
-            transit_planets=transit_planets
+            natal_chart=_enhance_with_symbols(ChartResponse(meta=MetaData(datetime=request.natal.datetime, location=Location(lat=request.natal.lat, lon=request.natal.lon), house_system=request.natal.house_system), ascendant=natal["ascendant"], planets=natal["planets"], aspects=natal["aspects"], midpoints=natal["midpoints"])),
+            transit_planets=transits
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/progressions", response_model=ChartResponse)
+async def get_progressions(request: ProgressionRequest):
+    try:
+        res = engine.calculate_secondary_progressions(request.natal.datetime, request.target_date, request.natal.lat, request.natal.lon)
+        response = ChartResponse(
+            meta=MetaData(datetime=request.target_date, location=Location(lat=request.natal.lat, lon=request.natal.lon), house_system=request.natal.house_system),
+            ascendant=res["ascendant"], planets=res["planets"], aspects=res["aspects"], midpoints=res["midpoints"]
+        )
+        return _enhance_with_symbols(response)
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/solar-return", response_model=ChartResponse)
+async def get_solar_return(request: SolarReturnRequest):
+    try:
+        res = engine.calculate_solar_return(request.natal.datetime, request.return_year, request.natal.lat, request.natal.lon)
+        response = ChartResponse(
+            meta=MetaData(datetime=request.natal.datetime, location=Location(lat=request.natal.lat, lon=request.natal.lon), house_system=request.natal.house_system),
+            ascendant=res["ascendant"], planets=res["planets"], aspects=res["aspects"], midpoints=res["midpoints"]
+        )
+        return _enhance_with_symbols(response)
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/planetary-hours", response_model=PlanetaryHourResponse)
+async def get_hours(lat: float, lon: float):
+    try:
+        res = engine.calculate_planetary_hours(datetime.utcnow(), lat, lon)
+        return PlanetaryHourResponse(hour_ruler=res["hour_ruler"], day_ruler=res["day_ruler"], is_daytime=res["is_daytime"])
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/interpret", response_model=AIInterpretationResponse)
 async def interpret_chart(request: AIInterpretationRequest):
-    """
-    Generate an AI interpretation for the provided chart data.
-    """
-    try:
-        interpretation = await ai_service.get_interpretation(request.chart_data, request.interpretation_type)
-        return interpretation
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    try: return await ai_service.get_interpretation(request.chart_data, request.interpretation_type)
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
