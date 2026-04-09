@@ -125,6 +125,22 @@ class PlanetaryHourResponse(BaseModel):
     day_ruler: str
     is_daytime: bool
 
+class TransitEvent(BaseModel):
+    datetime: datetime
+    planet_1: str # Transit Planet
+    planet_2: str # Natal Planet
+    aspect_type: str
+    orb: float
+
+class TransitTimelineRequest(BaseModel):
+    natal: ChartRequest
+    days: int = 30 # Range to scan
+    lang: str = "tr"
+
+class TransitTimelineResponse(BaseModel):
+    natal_meta: MetaData
+    timeline: List[TransitEvent]
+
 class AIInterpretationRequest(BaseModel):
     chart_data: ChartResponse
     interpretation_type: str = "professional"  
