@@ -1,13 +1,16 @@
 from fastapi import APIRouter, HTTPException, Query
 from app.models.chart import (
     ChartRequest, ChartResponse, MetaData, Location, 
-    SynastryRequest, SynastryResponse, TransitRequest, TransitResponse
+    SynastryRequest, SynastryResponse, TransitRequest, TransitResponse,
+    AIInterpretationRequest, AIInterpretationResponse
 )
 from app.services.astro_engine import AstroEngine
+from app.services.ai_service import AIService
 from datetime import datetime
 
 router = APIRouter()
 engine = AstroEngine()
+ai_service = AIService()
 
 HOUSE_SYSTEMS = {
     "placidus": "P",
@@ -39,7 +42,8 @@ async def get_chart(
             meta=MetaData(datetime=dt, location=Location(lat=lat, lon=lon), house_system=system),
             ascendant=results["ascendant"],
             planets=results["planets"],
-            aspects=results["aspects"]
+            aspects=results["aspects"],
+            midpoints=results["midpoints"]
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -61,11 +65,11 @@ async def get_synastry(request: SynastryRequest):
         return SynastryResponse(
             person_1_chart=ChartResponse(
                 meta=MetaData(datetime=request.person_1.datetime, location=Location(lat=request.person_1.lat, lon=request.person_1.lon), house_system=request.person_1.house_system),
-                ascendant=chart1["ascendant"], planets=chart1["planets"], aspects=chart1["aspects"]
+                ascendant=chart1["ascendant"], planets=chart1["planets"], aspects=chart1["aspects"], midpoints=chart1["midpoints"]
             ),
             person_2_chart=ChartResponse(
                 meta=MetaData(datetime=request.person_2.datetime, location=Location(lat=request.person_2.lat, lon=request.person_2.lon), house_system=request.person_2.house_system),
-                ascendant=chart2["ascendant"], planets=chart2["planets"], aspects=chart2["aspects"]
+                ascendant=chart2["ascendant"], planets=chart2["planets"], aspects=chart2["aspects"], midpoints=chart2["midpoints"]
             ),
             compatibility_aspects=compatibility
         )
@@ -80,7 +84,7 @@ async def get_transits(request: TransitRequest):
     try:
         hsys = HOUSE_SYSTEMS.get(request.natal.house_system.lower(), "P")
         
-        natal_chart = engine.calculate_chart(request.natal.datetime, request.natal.lat, request.natal.lon, hsys)
+        natal_chart_data = engine.calculate_chart(request.natal.datetime, request.natal.lat, request.natal.lon, hsys)
         transit_planets = engine.calculate_transits(
             request.natal.datetime, request.natal.lat, request.natal.lon, 
             request.transit_datetime, hsys
@@ -89,9 +93,20 @@ async def get_transits(request: TransitRequest):
         return TransitResponse(
             natal_chart=ChartResponse(
                 meta=MetaData(datetime=request.natal.datetime, location=Location(lat=request.natal.lat, lon=request.natal.lon), house_system=request.natal.house_system),
-                ascendant=natal_chart["ascendant"], planets=natal_chart["planets"], aspects=natal_chart["aspects"]
+                ascendant=natal_chart_data["ascendant"], planets=natal_chart_data["planets"], aspects=natal_chart_data["aspects"], midpoints=natal_chart_data["midpoints"]
             ),
             transit_planets=transit_planets
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/interpret", response_model=AIInterpretationResponse)
+async def interpret_chart(request: AIInterpretationRequest):
+    """
+    Generate an AI interpretation for the provided chart data.
+    """
+    try:
+        interpretation = await ai_service.get_interpretation(request.chart_data, request.interpretation_type)
+        return interpretation
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

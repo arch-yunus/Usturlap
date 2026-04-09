@@ -1,10 +1,17 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 class Location(BaseModel):
     lat: float = Field(..., example=41.0082)
     lon: float = Field(..., example=28.9784)
+
+class DignityData(BaseModel):
+    rulership: bool = False
+    exaltation: bool = False
+    detriment: bool = False
+    fall: bool = False
+    score: int = 0  # Essential dignity score
 
 class PlanetData(BaseModel):
     name: str
@@ -12,6 +19,7 @@ class PlanetData(BaseModel):
     degree: float
     house: int
     is_retrograde: bool
+    dignity: Optional[DignityData] = None
 
 class AspectData(BaseModel):
     planet_1: str
@@ -26,9 +34,10 @@ class MetaData(BaseModel):
 
 class ChartResponse(BaseModel):
     meta: MetaData
-    ascendant: Dict[str, any]
+    ascendant: Dict[str, Any]
     planets: List[PlanetData]
     aspects: List[AspectData]
+    midpoints: Optional[List[Dict[str, Any]]] = None
 
 class ChartRequest(BaseModel):
     datetime: datetime
@@ -53,3 +62,12 @@ class TransitRequest(BaseModel):
 class TransitResponse(BaseModel):
     natal_chart: ChartResponse
     transit_planets: List[PlanetData] # Current positions relative to natal chart
+
+class AIInterpretationRequest(BaseModel):
+    chart_data: ChartResponse
+    interpretation_type: str = "professional"  # professional, archetypal, psychological
+
+class AIInterpretationResponse(BaseModel):
+    interpretation: str
+    model_used: str
+    structured_insights: Dict[str, Any]
