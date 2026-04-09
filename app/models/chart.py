@@ -38,16 +38,31 @@ class MetaData(BaseModel):
     house_system: str
 
 class LotData(BaseModel):
-    name: str # Lot of Fortune, Spirit, etc.
+    name: str
     sign: str
     degree: float
 
 class FixedStarData(BaseModel):
-    name: str # Regulus, Aldebaran, etc.
+    name: str
     sign: str
     degree: float
     distance_to_planet: Optional[float] = None
     connected_planet: Optional[str] = None
+
+class AlmutenData(BaseModel):
+    planet: str
+    total_score: float
+    breakdown: Dict[str, float]
+
+class LocalityLineData(BaseModel):
+    planet: str
+    line_type: str 
+    longitude: float 
+
+class LunarMansionData(BaseModel):
+    number: int
+    name: str # e.g., Al-Thurayya
+    meaning: str
 
 class ChartResponse(BaseModel):
     meta: MetaData
@@ -57,6 +72,8 @@ class ChartResponse(BaseModel):
     midpoints: Optional[List[Dict[str, Any]]] = None
     lots: Optional[List[LotData]] = None
     fixed_stars: Optional[List[FixedStarData]] = None
+    almuten: Optional[AlmutenData] = None
+    lunar_mansion: Optional[LunarMansionData] = None
 
 class ChartRequest(BaseModel):
     datetime: datetime
@@ -64,6 +81,7 @@ class ChartRequest(BaseModel):
     lon: float
     house_system: str = "placidus"
     zodiac_type: str = "tropical"
+    is_heliocentric: bool = False # Heliocentric coordinate support
 
 class SynastryRequest(BaseModel):
     person_1: ChartRequest
@@ -90,13 +108,17 @@ class SolarReturnRequest(BaseModel):
     natal: ChartRequest
     return_year: int 
 
+class SolarArcRequest(BaseModel):
+    natal: ChartRequest
+    target_date: datetime 
+
 class HarmonicRequest(BaseModel):
     natal: ChartRequest
-    harmonic_number: int # 9 for Navamsa, etc.
+    harmonic_number: int 
 
 class LocalityRequest(BaseModel):
     natal: ChartRequest
-    planet: str # The planet we want to map lines for
+    planet: str 
 
 class PlanetaryHourResponse(BaseModel):
     hour_ruler: str
@@ -105,7 +127,7 @@ class PlanetaryHourResponse(BaseModel):
 
 class AIInterpretationRequest(BaseModel):
     chart_data: ChartResponse
-    interpretation_type: str = "professional"  # professional, archetypal, psychological
+    interpretation_type: str = "professional"  
 
 class AIInterpretationResponse(BaseModel):
     interpretation: str
